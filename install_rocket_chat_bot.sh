@@ -36,27 +36,38 @@ mkdir -p "$SCRIPTS_TO_RUN_DIR"
 # Create cron job
 create_cron_job() {
     # Prompt for variable values
-    read -p "Enter the server URL: " SERVER_URL
+    read -p "Enter the server URL (include https:// etc): " SERVER_URL
     read -p "Enter the user ID: " USER_ID
     read -p "Enter the auth token: " AUTH_TOKEN
     read -p "Enter the channel ID: " CHANNEL_ID
     read -p "Enter the cron schedule (e.g., '0 0 * * *' for a nightly job, default is every 5 minutes): " CRON_SCHEDULE
     CRON_SCHEDULE=${CRON_SCHEDULE:-"*/5 * * * *"}
     
-    echo '#!/bin/bash' > "$SCRIPT_PATH"
-    echo '' >> "$SCRIPT_PATH"
-    echo 'for script in "$SCRIPT_DIR"/*' >> "$SCRIPT_PATH"
-    echo 'do' >> "$SCRIPT_PATH"
-    echo '    SCRIPT_TO_RUN="$script"' >> "$SCRIPT_PATH"
-    echo '    OUTPUT=$($SCRIPT_TO_RUN)' >> "$SCRIPT_PATH"
-    echo '    if [ -n "$OUTPUT" ]; then' >> "$SCRIPT_PATH"
-    echo '        curl -s -X POST -H "Content-type:application/json" \' >> "$SCRIPT_PATH"
-    echo '            -H "X-Auth-Token: $AUTH_TOKEN" \' >> "$SCRIPT_PATH"
-    echo '            -H "X-User-Id: $USER_ID" \' >> "$SCRIPT_PATH"
-    echo '            --data '\''{"channel": "$CHANNEL_ID", "text": "'"$OUTPUT"'"}'\'' \' >> "$SCRIPT_PATH"
-    echo '            $SERVER_URL/api/v1/chat.postMessage' >> "$SCRIPT_PATH"
-    echo '    fi' >> "$SCRIPT_PATH"
-    echo 'done' >> "$SCRIPT_PATH"
+    cat << EOF > "$SCRIPT_PATH"
+#!/bin/bash
+
+for script in "$SCRIPT_DIR"/*
+do
+    SCRIPT_TO_RUN="\$script"
+    OUTPUT=\$($SCRIPT_TO_RUN)
+    if [ -n "\$OUTPUT" ]; then
+        curl -s -X POST -H "Content-type:application/json" \
+            -H "X-Auth-Token: \$AUTH_TOKEN" \
+            -H "X-User-Id: \$USER_ID" \
+            --data '{"channel": "\$CHANNEL_ID", "text": "'"\$OUTPUT"'"}' \
+            \$SERVER_URL/api/v1/chat.postMessage
+    fi
+done
+EOF
+
+    echo "Here is the content of the new script:"
+    cat "$SCRIPT_PATH"
+    read -p "Do you want to continue with the installation? (y/n, default is n): " confirm
+    if [ "$(echo "$confirm" | tr '[:upper:]' '[:lower:]' | xargs)" != "y" ]; then
+        echo "Installation cancelled as per user request."
+        exit 0
+    fi
+
 
     chmod +x "$SCRIPT_PATH"
 
@@ -84,7 +95,11 @@ else
 fi
 
 # Prompt for an additional script
-read -p "Enter the path to the script or command to run: " SCRIPT_TO_RUN
+read -p "Enter the path to the script or command to run (or hit Enter to not add any additional scripts): " SCRIPT_TO_RUN
+if [ -z "$SCRIPT_TO_RUN" ]; then
+    echo "No additional scripts will be added."
+    exit 0
+else
 
 # Check if script already exists in the script directory
 if [ -f "$SCRIPT_PATH/$SCRIPT_TO_RUN" ]; then
