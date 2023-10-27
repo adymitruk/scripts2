@@ -49,13 +49,13 @@ create_cron_job() {
 for script in "$SCRIPT_DIR"/*
 do
     SCRIPT_TO_RUN="\$script"
-    OUTPUT=\$($SCRIPT_TO_RUN)
+    OUTPUT=\$SCRIPT_TO_RUN
     if [ -n "\$OUTPUT" ]; then
         curl -s -X POST -H "Content-type:application/json" \
-            -H "X-Auth-Token: \$AUTH_TOKEN" \
-            -H "X-User-Id: \$USER_ID" \
-            --data '{"channel": "\$CHANNEL_ID", "text": "'"\$OUTPUT"'"}' \
-            \$SERVER_URL/api/v1/chat.postMessage
+            -H "X-Auth-Token: $AUTH_TOKEN" \
+            -H "X-User-Id: $USER_ID" \
+            --data '{"channel": "$CHANNEL_ID", "text": "'"\$OUTPUT"'"}' \
+            $SERVER_URL/api/v1/chat.postMessage
     fi
 done
 EOF
