@@ -1,127 +1,117 @@
 #!/bin/bash
-if [ "$1" == "--rebuild" ]; then
-    REBUILD=true
-else
-    REBUILD=false
+
+# Prompt user for necessary information
+read -p "Enter Atuin database username [atuin]: " ATUIN_DB_USERNAME
+ATUIN_DB_USERNAME=${ATUIN_DB_USERNAME:-atuin}
+
+read -sp "Enter Atuin database password: " ATUIN_DB_PASSWORD
+echo ""
+
+read -p "Enter database name [atuin]: " POSTGRES_DB
+POSTGRES_DB=${POSTGRES_DB:-atuin}
+
+# Create necessary directories
+sudo mkdir -p /srv/atuin-server/config
+if [[ $? -ne 0 ]]; then
+    echo "Failed to create /srv/atuin-server/config directory. Exiting..."
+    exit 1
 fi
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    echo "Docker not found! Installing..."
-    sudo apt update
-    sudo apt install -y docker.io
-    sudo systemctl start docker
-    sudo systemctl enable docker
-else
-    echo "Docker is already installed!"
+sudo mkdir -p /srv/atuin-server/database
+if [[ $? -ne 0 ]]; then
+    echo "Failed to create /srv/atuin-server/database directory. Exiting..."
+    exit 1
 fi
 
-# Set cgroups for Docker to limit resources
-CGROUP_PATH="/sys/fs/cgroup/cpu/docker"
-if [ ! -d "$CGROUP_PATH" ]; then
-    sudo mkdir -p "$CGROUP_PATH"
-    echo $(( $(nproc) * 1024 / 10 )) | sudo tee "$CGROUP_PATH/cpu.shares"
-    echo $(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 10 )) | sudo tee /sys/fs/cgroup/memory/docker/memory.limit_in_bytes
+sudo chown $USER:$USER /srv/atuin-server -R
+if [[ $? -ne 0 ]]; then
+    echo "Failed to change ownership of /srv/atuin-server. Exiting..."
+    exit 1
 fi
 
-# Check if postgres_container is already running or exists
-if sudo docker ps -a | grep postgres_container &> /dev/null; then
-    echo "Stopping and removing existing postgres_container..."
-    sudo docker stop postgres_container
-    sudo docker rm postgres_container
-elif sudo docker ps -a -f status=exited | grep postgres_container &> /dev/null; then
-    echo "Removing exited postgres_container..."
-    sudo docker rm postgres_container
+# Create .env file
+cat <<EOF > /srv/atuin-server/.env
+ATUIN_DB_USERNAME=$ATUIN_DB_USERNAME
+ATUIN_DB_PASSWORD=$ATUIN_DB_PASSWORD
+POSTGRES_DB=$POSTGRES_DB
+EOF
+if [[ $? -ne 0 ]]; then
+    echo "Failed to create .env file. Exiting..."
+    exit 1
 fi
 
-# Run PostgreSQL inside the custom Docker container
-read -sp "Enter PostgreSQL password: " PG_PASSWORD
-# Check if the Docker image for PostgreSQL on Ubuntu 22.04 exists and build it if not or if REBUILD is true
-if [ "$REBUILD" = true ] || ! sudo docker images | grep postgres_16 &> /dev/null; then
-    # Create a Dockerfile to install PostgreSQL on Ubuntu 22.04
-    echo "FROM postgres:16
-
-USER postgres
-
-ARG PG_PASSWORD_ARG=chanegme
-ENV POSTGRES_PASSWORD=\$PG_PASSWORD_ARG
-RUN echo \$PG_PASSWORD
-RUN chmod 0700 /var/lib/postgresql/data &&\
-    initdb /var/lib/postgresql/data &&\
-    echo \"host all  all    0.0.0.0/0  md5\" >> /var/lib/postgresql/data/pg_hba.conf &&\
-    echo \"listen_addresses='*'\" >> /var/lib/postgresql/data/postgresql.conf &&\
-    pg_ctl start &&\
-    psql -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'main'\" | grep -q 1 || psql -U postgres -c \"CREATE DATABASE main\" &&\
-    psql -c \"ALTER USER postgres WITH ENCRYPTED PASSWORD '\$POSTGRES_PASSWORD';\"
-
-EXPOSE 5432
-" > Dockerfile
-
-    # Build the Docker image
-    sudo docker build --build-arg PG_PASSWORD_ARG=$PG_PASSWORD -t postgres_16 .
-    rm Dockerfile
+# Create docker-compose.yml
+cat <<EOF > /srv/atuin-server/docker-compose.yml
+version: '3.5'
+services:
+  atuin:
+    restart: always
+    image: ghcr.io/atuinsh/atuin:main
+    command: server start
+    volumes:
+      - "./config:/config"
+    links:
+      - postgresql:db
+    ports:
+      - 8888:8888
+    environment:
+      ATUIN_HOST: "0.0.0.0"
+      ATUIN_OPEN_REGISTRATION: "true"
+      ATUIN_DB_URI: postgres://$ATUIN_DB_USERNAME:$ATUIN_DB_PASSWORD@db/$POSTGRES_DB
+  postgresql:
+    image: postgres:14
+    restart: unless-stopped
+    volumes: # Don't remove permanent storage for index database files!
+      - "./database:/var/lib/postgresql/data/"
+    environment:
+      POSTGRES_USER: $ATUIN_DB_USERNAME
+      POSTGRES_PASSWORD: $ATUIN_DB_PASSWORD
+      POSTGRES_DB: $POSTGRES_DB
+EOF
+if [[ $? -ne 0 ]]; then
+    echo "Failed to create docker-compose.yml file. Exiting..."
+    exit 1
 fi
 
-# Check if a Docker container named postgres_container exists
-if sudo docker ps -a --format '{{.Names}}' | grep -w postgres_container &> /dev/null; then
-    # If it exists, stop and remove it
-    echo "Stopping and removing existing postgres_container..."
-    sudo docker stop postgres_container
-    sudo docker rm postgres_container
-fi
-
-# Check if the systemd service for the Docker container exists
-if [ -f /etc/systemd/system/docker-postgresql.service ]; then
-    sudo systemctl stop docker-postgresql.service
-    sudo systemctl disable docker-postgresql.service
-    sudo rm /etc/systemd/system/docker-postgresql.service
-fi
-
-# Create the systemd service to make the Docker container always run on startup
-echo "[Unit]
-Description=PostgreSQL Docker Container
+# Create systemd service file
+sudo bash -c 'cat <<EOF > /etc/systemd/system/atuin.service
+[Unit]
+Description=Docker Compose Atuin Service
+Requires=docker.service
+After=docker.service
 
 [Service]
-Restart=always
-ExecStartPre=/usr/bin/docker rm -f postgres_container
-ExecStart=/usr/bin/docker run --name postgres_container -p 5432:5432 postgres_16
-ExecStop=/usr/bin/docker stop -t 2 postgres_container
-[Install]
-WantedBy=multi-user.target" | sudo tee /etc/systemd/system/docker-postgresql.service
+WorkingDirectory=/srv/atuin-server
+ExecStart=/usr/bin/docker-compose up
+ExecStop=/usr/bin/docker-compose down
+TimeoutStartSec=0
+Restart=on-failure
+StartLimitBurst=3
 
+[Install]
+WantedBy=multi-user.target
+EOF'
+if [[ $? -ne 0 ]]; then
+    echo "Failed to create systemd service file. Exiting..."
+    exit 1
+fi
+
+# Reload systemd and start atuin service
 sudo systemctl daemon-reload
-sudo systemctl enable docker-postgresql.service
-sudo systemctl start docker-postgresql.service
-
-read -p "Enter username for SSH jumpstation: " SSH_USER
-read -p "Enter address for SSH jumpstation: " SSH_ADDRESS
-
-SERVICE_NAME="ssh_jumpstation_tunnel.service"
-
-if systemctl is-active --quiet "$SERVICE_NAME"; then
-    echo "Existing SSH jumpstation service found! Removing..."
-    sudo systemctl stop "$SERVICE_NAME"
-    sudo systemctl disable "$SERVICE_NAME"
-    sudo rm "/etc/systemd/system/$SERVICE_NAME"
+if [[ $? -ne 0 ]]; then
+    echo "Failed to reload systemd. Exiting..."
+    exit 1
 fi
 
-echo "[Unit]
-Description=SSH tunnel to jumpstation for PostgreSQL
-After=network.target
+sudo systemctl enable --now atuin
+if [[ $? -ne 0 ]]; then
+    echo "Failed to enable and start atuin service. Exiting..."
+    exit 1
+fi
 
-[Service]
-User=$SSH_USER
-ExecStart=/usr/bin/ssh -NT -o ExitOnForwardFailure=yes -o ServerAliveInterval=60 -R 5432:localhost:5432 $SSH_USER@$SSH_ADDRESS
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target" | sudo tee "/etc/systemd/system/$SERVICE_NAME"
-
-sudo systemctl enable "$SERVICE_NAME"
-sudo systemctl start "$SERVICE_NAME"
-
-# Print the message on how to connect through jumpstation
-echo "To connect to PostgreSQL through the jumpstation from a third computer, use the following command:"
-echo "ssh -L 5432:localhost:5432 $SSH_USER@$SSH_ADDRESS"
-
+# Output status
+sudo systemctl status atuin
+if [[ $? -ne 0 ]]; then
+    echo "Failed to get status of atuin service. Exiting..."
+    exit 1
+fi
