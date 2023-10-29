@@ -1,12 +1,15 @@
 #!/bin/bash
 
+if ! command -v dialog &> /dev/null; then
+  echo "Dialog is not installed. Installing Dialog..."
+  sudo apt-get update
+  sudo apt-get install -y dialog
+fi
+
 echo "Detecting USB drives..."
 
-# List all block devices with their size and mount point (if any)
-lsblk -o NAME,SIZE,MOUNTPOINT | grep "sd."
-
-echo "Please enter the device name of the USB drive you want to mount (e.g., sdb1):"
-read usb_device
+# Use dialog to prompt for the USB drive
+usb_device=$(dialog --stdout --menu "Please select the USB drive you want to mount:" 0 0 0 $(lsblk -o NAME,SIZE,MOUNTPOINT | grep "sd." | awk '{print $1, $2}'))
 
 # Validate input
 if [[ ! "$usb_device" =~ ^sd[a-z][0-9]+ ]]; then
@@ -33,8 +36,7 @@ if [ -z "$fs_type" ]; then
   exit 1
 fi
 
-echo "Enter the mount point (e.g., /mnt/usb):"
-read mount_point
+mount_point=$(dialog --stdout --dselect /mnt/ 0 0)
 
 # Create mount point if it doesn't exist
 if [ ! -d "$mount_point" ]; then
@@ -55,8 +57,11 @@ fi
 # Get the group GID (assuming group name is the same as user name)
 group_id=$(id -g $user_name)
 
-# Mount the USB drive
-sudo mount -o uid=$user_id,gid=$group_id /dev/$usb_device $mount_point
+# Add the USB drive to /etc/fstab
+echo "/dev/$usb_device $mount_point auto defaults,uid=$user_id,gid=$group_id 0 0" | sudo tee -a /etc/fstab
+
+# Mount all filesystems mentioned in fstab
+sudo mount -a
 
 if [ $? -eq 0 ]; then
   echo "USB drive /dev/$usb_device has been successfully mounted to $mount_point with ownership set to $user_name."
