@@ -26,7 +26,7 @@ usb_device=$(dialog --stdout --menu "Please select the USB drive you want to mou
 
 # Echo the selected USB drive
 echo "You have selected: $usb_device"
-exit 0
+
 # Validate input
 if [[ ! "$usb_device" =~ ^sd[a-z][0-9]+ ]]; then
   echo "Invalid device name. Device name should be in the form sdb1, sdc2, etc."
