@@ -9,7 +9,7 @@ fi
 echo "Detecting USB drives..."
 
 # Store all USB drives in a variable
-usb_drives=$(lsblk -o NAME,SIZE,MOUNTPOINT | grep "sd." | awk '{print $1, $2}')
+usb_drives=$(lsblk -plno NAME,SIZE,MOUNTPOINT | grep "sd.")
 
 # Echo the available USB drives
 echo "Available USB drives:"
