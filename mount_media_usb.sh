@@ -9,18 +9,24 @@ fi
 echo "Detecting USB drives..."
 
 # Store all USB drives in a variable
-usb_drives=$(lsblk -plno NAME,SIZE,MOUNTPOINT | grep "sd.")
+usb_drives=$(lsblk -lno NAME,SIZE | grep sd.)
+
+# Prepare the USB drives for the dialog command, ignoring lines that don't have 2 fields
+usb_drives_for_dialog=$(echo "$usb_drives" | awk 'NF==2 {print $1, $2}')
+usb_drives_for_dialog=${usb_drives_for_dialog//$'\n'/ }
 
 # Echo the available USB drives
 echo "Available USB drives:"
 echo "$usb_drives"
+echo -----
+echo "$usb_drives_for_dialog"
 
 # Use dialog to prompt for the USB drive
-usb_device=$(dialog --stdout --menu "Please select the USB drive you want to mount:" 0 0 0 $usb_drives)
+usb_device=$(dialog --stdout --menu "Please select the USB drive you want to mount:" 0 0 0 $usb_drives_for_dialog)
 
 # Echo the selected USB drive
 echo "You have selected: $usb_device"
-
+exit 0
 # Validate input
 if [[ ! "$usb_device" =~ ^sd[a-z][0-9]+ ]]; then
   echo "Invalid device name. Device name should be in the form sdb1, sdc2, etc."
