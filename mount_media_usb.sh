@@ -8,8 +8,18 @@ fi
 
 echo "Detecting USB drives..."
 
+# Store all USB drives in a variable
+usb_drives=$(lsblk -o NAME,SIZE,MOUNTPOINT | grep "sd." | awk '{print $1, $2}')
+
+# Echo the available USB drives
+echo "Available USB drives:"
+echo "$usb_drives"
+
 # Use dialog to prompt for the USB drive
-usb_device=$(dialog --stdout --menu "Please select the USB drive you want to mount:" 0 0 0 $(lsblk -o NAME,SIZE,MOUNTPOINT | grep "sd." | awk '{print $1, $2}'))
+usb_device=$(dialog --stdout --menu "Please select the USB drive you want to mount:" 0 0 0 $usb_drives)
+
+# Echo the selected USB drive
+echo "You have selected: $usb_device"
 
 # Validate input
 if [[ ! "$usb_device" =~ ^sd[a-z][0-9]+ ]]; then
