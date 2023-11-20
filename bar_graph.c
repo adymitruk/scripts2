@@ -8,15 +8,22 @@
 
 #define ROWS 8
 #define PIXEL "\u2588"
+#define GREEN "\033[38;5;2m"
+#define RESET "\033[0m"
 
 // Use the 8x8 representation of each character from font8x8_basic.h
 char (*characters)[8] = font8x8_basic;
 
-int main() {
+int main(int argc, char *argv[]) {
     struct winsize w;
     ioctl(0, TIOCGWINSZ, &w);
     int COLS = w.ws_col;
-    char message[] = "Hello World!";
+    char *message;
+    if (argc > 1) {
+        message = argv[1];
+    } else {
+        message = "hello world";
+    }
     int messageLength = strlen(message);
     int padding = COLS; // Padding is equal to COLS
     int totalCols = 2 * padding + messageLength * 8; // Total columns including padding and message
@@ -44,7 +51,7 @@ int main() {
         for (int i = 0; i < ROWS; i++) {
             for (int j = offset; j < offset + COLS; j++) {
                 if (matrix[i][j] == 'x') {
-                    printf("\033[38;5;2m%s\033[0m", PIXEL);
+                    printf(GREEN PIXEL RESET);
                 } else {
                     printf(" ");
                 }
