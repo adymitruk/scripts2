@@ -32,7 +32,7 @@ function download_file() {
         url="https://github.com/ramboxapp/download/releases/download/v${global_version}/Rambox-${global_version}-linux-x64.deb"
         echo "url:"
         echo "URL: ${url}"
-        curl -L --output "$global_file_path"  "$url" 
+        curl -L --output "$global_file_path"  "$url"
         if [[ $? -ne 0 ]]; then
             echo "Failed to download the file. Exiting..."
             exit 1
@@ -41,7 +41,7 @@ function download_file() {
 }
 
 function install_package() {
-    echo "Installing the package" $global_file_path 
+    echo "Installing the package" $global_file_path
     sudo dpkg -i "$global_file_path"
     if [[ $? -ne 0 ]]; then
         echo "Failed to install the package. Exiting..."
