@@ -37,9 +37,7 @@ write_iso() {
 
 # Main script logic
 install_dialog
-ISO_PATH=$(dialog --stdout --title "Select the ISO file" --fselect ~/Downloads/ 14 48)
-echo fix the dialog. file picker does not work yet
-exit 1
+ISO_PATH=$(dialog --stdout --title "use space bar to Select the ISO file" --fselect ~/Downloads/ 14 48)
 
 if [ ! -f "$ISO_PATH" ]; then
     dialog --title "Error" --msgbox "Invalid file selected: $ISO_PATH. Exiting." 5 45
