@@ -42,8 +42,17 @@ create_cron_job() {
     read -p "Enter the channel ID: " CHANNEL_ID
     read -p "Enter the cron schedule (e.g., '0 0 * * *' for a nightly job, default is every 5 minutes): " CRON_SCHEDULE
     CRON_SCHEDULE=${CRON_SCHEDULE:-"*/5 * * * *"}
-    
-    cat << EOF > "$SCRIPT_PATH"
+
+    # write out the variables the user populated
+    echo "SERVER_URL=$SERVER_URL"
+    echo "USER_ID=$USER_ID"
+    echo "AUTH_TOKEN=$AUTH_TOKEN"
+    echo "CHANNEL_ID=$CHANNEL_ID"
+
+    # crrate a temp file to hold the script
+    TEMP_SCRIPT_PATH=$(mktemp)
+
+    cat << EOF > "$TEMP_SCRIPT_PATH"
 #!/bin/bash
 
 for script in "$SCRIPT_DIR"/*
@@ -61,13 +70,14 @@ done
 EOF
 
     echo "Here is the content of the new script:"
-    cat "$SCRIPT_PATH"
+    cat "$TEMP_SCRIPT_PATH"
     read -p "Do you want to continue with the installation? (y/n, default is n): " confirm
     if [ "$(echo "$confirm" | tr '[:upper:]' '[:lower:]' | xargs)" != "y" ]; then
         echo "Installation cancelled as per user request."
         exit 0
     fi
-
+    
+    mv "$TEMP_SCRIPT_PATH" "$SCRIPT_PATH"
 
     chmod +x "$SCRIPT_PATH"
 
