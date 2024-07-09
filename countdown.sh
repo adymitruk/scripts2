@@ -6,24 +6,46 @@
 # when the countdown reaches zero, another message will show 
 # that the stream is going live
 
-if [ $# -eq 0 ]
-then
+print_help() {
+  echo "Usage: $0 <countdown_time_in_seconds> [end_message] [countdown_message]"
+  echo
+  echo "Arguments:"
+  echo "  countdown_time_in_seconds  The countdown time in seconds (required)"
+  echo "  end_message                The message to display when the countdown reaches zero (optional)"
+  echo "  countdown_message          The message to display during the countdown (optional)"
+  echo
+  echo "Example:"
+  echo "  $0 60 'The stream is now going live!' 'Stream starting in'"
+}
+
+if [ "$1" == "--help" ]; then
+  print_help
+  exit 0
+fi
+
+if [ $# -lt 1 ]; then
   echo "No arguments supplied. Please provide the countdown time in seconds."
   exit 1
 fi
-start_time=$(date -d "$1" +%s)
-current_time=$(date +%s)
-countdown_time=$((start_time - current_time))
-while [ $countdown_time -gt 0 ]
-do
+
+# Ensure the input is a valid number
+if ! [[ $1 =~ ^[0-9]+$ ]]; then
+  echo "Invalid input. Please provide the countdown time in seconds as a positive integer."
+  exit 1
+fi
+
+countdown_time=$1
+end_message=${2:-"The stream is now going live!"} # Default end message if not provided
+countdown_message=${3:-"Stream starting in"} # Default countdown message if not provided
+clear
+while [ $countdown_time -gt 0 ]; do
   minutes=$((countdown_time / 60))
   seconds=$((countdown_time % 60))
   echo -ne '\n' # Move to a new line to avoid overwriting the final countdown message
-  echo -ne "Stream starting in $minutes minute(s) and $seconds second(s) at $(date -d @$start_time +%H:%M:%S)\r"
+  echo -ne "$countdown_message $minutes minute(s) and $seconds second(s)\r"
   echo -ne "\033[1A" # Move up one line
   sleep 1
-  current_time=$(date +%s)
-  countdown_time=$((start_time - current_time))
+  countdown_time=$((countdown_time - 1))
 done
 echo -ne '\n' # Move to a new line after the loop ends to avoid overwriting the final countdown message
-echo "The stream is now going live!"
+echo "$end_message"
