@@ -1,33 +1,54 @@
 #!/bin/bash
+THRESHOLD=90
+TIME_PERIOD="1 minutes ago"
 
-# Check if the disk check log file exists
-if [ -f "disk_check.log" ]; then
-  # Get the last run time from the log file
-  last_run=$(date -d "$(cat disk_check.log)" +%s)
-  # Get the current time
-  now=$(date +"%s")
-  # Calculate the number of seconds in a day
-  seconds_in_a_day=$((24*60*60))
-  # If the last run was less than 1 day ago, exit
-  if [ $(($now - $last_run)) -lt $seconds_in_a_day ]; then
-    exit 0
+DEBUG=0
+for arg in "$@"
+do
+  if [ "$arg" == "--debug" ]
+  then
+    DEBUG=1
+    echo DEBUG: debug set
   fi
+done
+last_run=$(date -r "disk_check.log" +%s)
+[ $DEBUG -eq 1 ] && echo "DEBUG: Last run: $(date -d @$last_run)"
+time_period_ago=$(date -d"$TIME_PERIOD" +%s)
+[ $DEBUG -eq 1 ] && echo "DEBUG: Time period ago: $(date -d @$time_period_ago)"
+
+if [ $last_run -ge $time_period_ago ]
+then
+  [ $DEBUG -eq 1 ] && echo "DEBUG: Script was run less than $TIME_PERIOD. Exiting..."
+  exit 0
+else
+  [ $DEBUG -eq 1 ] && echo "DEBUG: Script was run more than $TIME_PERIOD. Continuing..."
 fi
 
-# Get the disk usage for root and /home mounts
-disk_usage_root=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
-disk_usage_home=$(df /home | tail -1 | awk '{print $5}' | sed 's/%//')
 
-# If disk usage for either root or /home is more than 50%, write the timestamp to the log file
-if [ $disk_usage_root -gt 50 ] || [ $disk_usage_home -gt 50 ]; then
-  # Get the hostname of the machine
-  host_name=$(hostname)
-  # Identify which disk is running low
-  if [ $disk_usage_root -gt 50 ]; then
-    echo "Disk '/' on $host_name is running low"
+mount_points=("/" "/home")
+[ $DEBUG -eq 1 ] && echo DEBUG: mount points: "${mount_points[@]}"
+
+over_threshold=()
+
+for mount_point in "${mount_points[@]}"
+do
+  disk_usage=$(df $mount_point | tail -1 | awk '{print $5}' | sed 's/%//')
+  [ $DEBUG -eq 1 ] && echo "DEBUG: Disk usage for $mount_point: $disk_usage%"
+  if [ $disk_usage -gt ${THRESHOLD} ]; then
+    over_threshold+=("$mount_point: $disk_usage%")
   fi
-  if [ $disk_usage_home -gt 50 ]; then
-    echo "Disk '/home' on $host_name is running low"
-  fi
+done
+[ $DEBUG -eq 1 ] && echo "DEBUG: Over threshold: ${over_threshold[@]}"
+
+if [ ${#over_threshold[@]} -ne 0 ]; then
+  echo "The following mount points are over the threshold:"
+  for i in "${over_threshold[@]}"
+  do
+    echo $i
+  done
+else
+  [ $DEBUG -eq 1 ] && echo DEBUG: no mount points are over the threshold
 fi
- echo "$(date +%Y-%m-%d\ %H:%M:%S)" > "disk_check.log"
+current_date=$(date +%Y-%m-%d\ %H:%M:%S)
+[ $DEBUG -eq 1 ] && echo DEBUG: $current_date
+echo $current_date > "disk_check.log"

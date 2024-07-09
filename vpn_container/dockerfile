@@ -1,0 +1,27 @@
+FROM ubuntu:22.04
+
+# Update and install necessary packages
+RUN apt-get update && apt-get install -y \
+    curl \
+    iptables \
+    iproute2 \
+    openvpn \
+    gpg
+
+# Add Proton VPN repository and install Proton VPN
+RUN curl -sS https://repo.protonvpn.com/debian/dists/stable/main/binary-all/protonvpn-stable-release_1.0.3-2_all.deb -o protonvpn.deb && \
+    dpkg -i protonvpn.deb && \
+    apt-get update && apt-get install -y protonvpn
+
+# Cleanup
+RUN rm protonvpn.deb && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the Proton VPN configuration script into the container
+COPY setup_vpn.sh /setup_vpn.sh
+
+# Make the script executable
+RUN chmod +x /setup_vpn.sh
+
+CMD ["/setup_vpn.sh"]

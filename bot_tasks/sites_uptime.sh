@@ -8,16 +8,17 @@ else
   debug=false
 fi
 
-# Get the file name from the command line
-if [[ -z $1 ]]; then
-  echo "Error: No file specified."
-  exit 1
-else
-  file_name=$1
-fi
+# Inline the values
+file_contents="https://adaptechgroup.com/	We deliver solutions that power + scale the world's top companies.
+https://eventmodeling.org/	Event Modeling is a method of describing systems using an example of how information has changed within them over time"
 
 # Check if the last run log file exists
-if [ -f "last_run.log" ]; then
+if [ ! -f "last_uptime_check.log" ]; then
+  # If the log file does not exist, create one with the current time
+  echo "$(date +%Y-%m-%d\ %H:%M:%S)" > "last_uptime_check.log"
+  # Exit with 0
+  exit 0
+else
   # Get the last run time from the log file
   last_run=$(date -d "$(cat last_uptime_check.log)" +%s)
   # Get the current time
@@ -29,15 +30,6 @@ if [ -f "last_run.log" ]; then
 fi
 
 # Update the last run file
-touch "last_run.log"
-
-# Check if file exists
-if [ ! -f "$file_name" ]; then
-  echo "File not found!"
-  exit 1
-fi
-
-# Read the file line by line
 while IFS= read -r line
 do
   # Skip empty lines
@@ -60,14 +52,14 @@ do
 
   # If debug is set, echo the fetched content
   if [[ $debug == true ]]; then
-    echo "Fetched content: $content"
+    echo "Fetched content: ${content:0:300}"
   fi
 
   # Check if the expected content is in the fetched content
   if [[ $content != *"$expected_content"* ]]; then
     echo "Site $url is down or does not contain the expected content."
   fi
-done < "$file_name"
+done <<< "$file_contents"
 
 # write the timestamp to the log file
 echo "$(date +%Y-%m-%d\ %H:%M:%S)" > "last_uptime_check.log"
