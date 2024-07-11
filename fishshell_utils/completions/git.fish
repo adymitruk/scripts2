@@ -1,6 +1,13 @@
+function __fish_gh_fork_remotes
+    echo "manuel git@github.com:manuel/repo.git"
+    echo "adam git@github.com:adymitruk/repo.git"
+end
+
+complete -f -c git -n "__fish_git_using_command remote" -n "__fish_seen_subcommand_from add" -a '1\tone 2\ttwo'
+
 function __fish_gh_get_pr_list
     # use gh pr list --json number,title,author,headRepository | jq -r '.[] | "\(.number)\t\(.author.login)\t\(.title)\tgit@github.com:\(.author.login)/\(.headRepository.name).git"' to get the list
-    gh pr list --json number,title,author,headRepository | jq -r '.[] | "\(.number) \(.author.login) \(.title) \(.author.login)\tgit@github.com:\(.author.login)/\(.headRepository.name).git"'
+    gh pr list --state all --json number,title,author,headRepository | jq -r '.[] | "\(.number) \(.author.login) \(.title) \(.author.login)\tgit@github.com:\(.author.login)/\(.headRepository.name).git"'
 end
 
 function __fish_gh_pr_list_for_remotes
@@ -30,4 +37,3 @@ function __fish_gh_pr_list_for_remotes
     cat $cache_file
 end
 
-complete -c gh_add_remote_from_pr -f -a "\('option 1' 'value 1'\)" -d "select an option
