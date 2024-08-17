@@ -47,5 +47,11 @@ while [ $countdown_time -gt 0 ]; do
   sleep 1
   countdown_time=$((countdown_time - 1))
 done
-echo -ne '\n' # Move to a new line after the loop ends to avoid overwriting the final countdown message
+clear
 echo "$end_message"
+while [ true ] ; do
+    read -t 3 -n 1
+    if [ $? = 0 ] ; then
+        break
+    fi
+done
