@@ -15,6 +15,11 @@ not_debug_echo() { if [[ $DEBUG -eq 0 ]]; then echo "$@"; fi }
 # function to download paage of ubuntu releases
 download_ubuntu_releases() { wget -q -O- "$RELEASES_URL"; }
 
+#check if running as root
+if [[ $EUID -ne 0 ]]; then
+    echo "This script must be run as root in order to modify the ISO."
+    exit 1
+fi
 
 # store a lookup table of unique release titles and their links
 declare -A unique_titles
