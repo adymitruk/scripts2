@@ -187,26 +187,115 @@ done
 #alter the iso so that it can be installed without a keyboard or mouse by specifying the preseed file
 #the preseed file is a text file that contains the answers to all the questions that the installer would ask
 
+
+# check if xorriso is installed
+if ! command -v xorriso &> /dev/null; then
+    echo "xorriso could not be found. Do you want to install it? (y/n): "
+    read answer
+    if [[ $answer == "y" ]]; then
+        sudo apt-get install -y xorriso
+    else
+        echo "xorriso is required to create the ISO. Exiting."
+        exit 1
+    fi
+fi
+
 preseed_file="preseed.cfg"
 
-cat <<EOF > "$preseed_file"
-d-i debian-installer/locale string en_US
-d-i keyboard-configuration/layoutcode string us
-d-i netcfg/choose_interface select auto
-d-i netcfg/dhcp_timeout string 60
-d-i clock-setup/utc boolean true
-d-i clock-setup/ntp boolean true    
-d-i preseed/late_command string \
+
+
+echo "d-i debian-installer/locale string en_US" > "$preseed_file"
+echo "d-i keyboard-configuration/layoutcode string us" >> "$preseed_file"
+echo "d-i netcfg/choose_interface select auto" >> "$preseed_file"
+echo "d-i netcfg/dhcp_timeout string 60" >> "$preseed_file"
+echo "d-i clock-setup/utc boolean true" >> "$preseed_file"
+echo "d-i clock-setup/ntp boolean true" >> "$preseed_file"
+echo "d-i preseed/late_command string \
     in-target apt-get update; \
     in-target apt-get install -y openssh-server; \
-    in-target systemctl enable ssh
-d-i passwd/root-password password your_root_password
-d-i passwd/root-password-again password your_root_password
-EOF
+    in-target systemctl enable ssh" >> "$preseed_file"
+echo "d-i passwd/root-password password your_root_password" >> "$preseed_file"
+echo "d-i passwd/root-password-again password your_root_password" >> "$preseed_file"
 
-# put the preseed file in the iso
-iso_mount_point=$(mktemp -d)
-sudo mount "$selected_iso" "$iso_mount_point"
-sudo cp "$preseed_file" "$iso_mount_point/preseed.cfg"
-sudo umount "$iso_mount_point"
-rmdir "$iso_mount_point"    
+
+# Function to create a new ISO with the preseed file
+create_new_iso_with_preseed() {
+    local source_iso="$1"
+    local preseed_file="$2"
+    local output_iso="$3"
+    local temp_dir=$(mktemp -d)
+
+    echo "Extracting ISO contents..."
+    xorriso -osirrox on -indev "$source_iso" -extract / "$temp_dir"
+
+    echo "Extracted ISO contents:"
+    ls -R "$temp_dir"
+
+    echo "Adding preseed file..."
+    cp "$preseed_file" "$temp_dir/preseed.cfg"
+    # Also copy to potential alternative locations
+    mkdir -p "$temp_dir/preseed"
+    cp "$preseed_file" "$temp_dir/preseed/ubuntu.seed"
+    cp "$preseed_file" "$temp_dir/preseed.cfg"
+
+    echo "Updating boot configurations..."
+
+    # Check for grub directory
+    if [ -f "$temp_dir/boot/grub/grub.cfg" ]; then
+        sed -i 's/timeout=30/timeout=1/' "$temp_dir/boot/grub/grub.cfg"
+        sed -i '/menuentry "Try or Install Ubuntu Server" {/,/}/c\menuentry "Automatic Install" {\n    set gfxpayload=keep\n    linux   /casper/vmlinuz file=/cdrom/preseed/ubuntu.seed auto=true priority=critical preseed/file=/cdrom/preseed.cfg quiet ---\n    initrd  /casper/initrd\n}' "$temp_dir/boot/grub/grub.cfg"
+    else
+        echo "Warning: grub.cfg not found"
+    fi
+
+    # Check for isolinux directory (might not exist in newer versions)
+    if [ -d "$temp_dir/isolinux" ]; then
+        if [ -f "$temp_dir/isolinux/isolinux.cfg" ]; then
+            sed -i 's/timeout 0/timeout 1/' "$temp_dir/isolinux/isolinux.cfg"
+        fi
+        
+        if [ -f "$temp_dir/isolinux/txt.cfg" ]; then
+            sed -i 's/^default.*/default auto/' "$temp_dir/isolinux/txt.cfg"
+            echo "label auto" >> "$temp_dir/isolinux/txt.cfg"
+            echo "  menu label ^Automatic Install" >> "$temp_dir/isolinux/txt.cfg"
+            echo "  kernel /casper/vmlinuz" >> "$temp_dir/isolinux/txt.cfg"
+            echo "  append file=/cdrom/preseed/ubuntu.seed auto=true priority=critical preseed/file=/cdrom/preseed.cfg quiet ---" >> "$temp_dir/isolinux/txt.cfg"
+        fi
+    else
+        echo "Note: isolinux directory not found (this is normal for newer Ubuntu versions)"
+    fi
+
+    # create the new iso in the current directory
+    echo "Creating new ISO..."
+    echo "current directory: $(pwd)"
+
+    # Check for the existence of efi.img
+    efi_img=$(find "$temp_dir" -name "efi.img")
+
+    if [ -n "$efi_img" ]; then
+        efi_img_path=$(realpath --relative-to="$temp_dir" "$efi_img")
+        xorriso -as mkisofs -r \
+            -V "Ubuntu-Server-Custom" \
+            -o "$output_iso" \
+            -J -l \
+            -e "$efi_img_path" -no-emul-boot \
+            -isohybrid-gpt-basdat \
+            "$temp_dir"
+    else
+        echo "Warning: efi.img not found. Creating ISO without EFI boot support."
+        xorriso -as mkisofs -r \
+            -V "Ubuntu-Server-Custom" \
+            -o "$output_iso" \
+            -J -l \
+            "$temp_dir"
+    fi
+
+    echo "Cleaning up..."
+    sudo rm -rf "$temp_dir"
+}
+
+# Create the new ISO with the preseed file
+output_iso="${selected_iso%.iso}-preseeded.iso"
+create_new_iso_with_preseed "$selected_iso" "$preseed_file" "$output_iso"
+
+echo "New preseeded ISO created: $output_iso"
