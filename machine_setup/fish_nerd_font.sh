@@ -27,6 +27,12 @@ if check_if_installed; then
     fi
 fi
 
+# check if wget is
+if ! type -q wget; then
+    echo "wget is not installed. Please install it first."
+    exit 1
+fi
+
 # Download and install the Meslo Nerd Font
 wget https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf
 wget https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Bold.ttf
