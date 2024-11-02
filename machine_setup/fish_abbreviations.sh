@@ -13,7 +13,7 @@ abbreviations=(
   "gl 'git pull'"
   "gp 'git push'"
   "gs 'git status'"
-  "glog 'git log --oneline --decorate --graph'"
+  "glog 'git log --all --oneline --decorate --graph'"
   "apt 'sudo apt update && sudo apt upgrade -y'"
   "l 'ls -trAlh'"
   "rs 'rsync -av'"
