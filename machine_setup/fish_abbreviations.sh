@@ -25,23 +25,29 @@ abbreviations_needing_updating=()
 # The config_file variable needs to be defined before it's used
 config_file=~/.config/fish/conf.d/abbreviations.fish
 
-for abbr in "${abbreviations[@]}"; do
-    # Split the abbreviation into key and value
-    key=$(echo "$abbr" | cut -d' ' -f1)
-    value=$(echo "$abbr" | cut -d' ' -f2-)
-    echo "checking $key"
-    
-    if ! grep -q "^abbr -a $key $value" "$config_file"; then
-        echo "Abbreviation $key is missing or incorrect"
-        if grep -q "^abbr -a $key" "$config_file"; then
-            abbreviations_needing_updating+=("$abbr")
-        else
-            missing_abbreviations+=("$abbr")
-        fi
-    else
-        echo "Abbreviation $key is set correctly"
-    fi
-done
+#check if the file exists
+if [ -f "$config_file" ]; then
+  for abbr in "${abbreviations[@]}"; do
+      # Split the abbreviation into key and value
+      key=$(echo "$abbr" | cut -d' ' -f1)
+      value=$(echo "$abbr" | cut -d' ' -f2-)
+      if ! grep -q "^abbr -a $key $value" "$config_file" > /dev/null; then
+          echo "Abbreviation $key is missing or incorrect"
+          if grep -q "^abbr -a $key" "$config_file"; then
+              abbreviations_needing_updating+=("$abbr")
+          else
+              missing_abbreviations+=("$abbr")
+          fi
+      else
+          echo "Abbreviation $key is set correctly"
+      fi
+  done
+else
+  # add all abbreviations to missing_abbreviations
+  for abbr in "${abbreviations[@]}"; do
+    missing_abbreviations+=("$abbr")
+  done
+fi
 
 function fish_abbreviations_check() {
   # Check each abbreviation
@@ -53,13 +59,14 @@ function fish_abbreviations_check() {
   fi
   
   echo "All abbreviations are set"
-  cat ~/.config/fish/conf.d/git_abbreviations.fish
   return 0
 }
 
 if [ "$1" == "check" ]; then
   fish_abbreviations_check
-  exit $?
+  result=$?
+  echo "got the result $result"
+  exit $result
 fi
 
 # Fix the adding/updating sections to use the full abbreviation
