@@ -19,7 +19,9 @@ while true; do
   read -p ""
   clear
   echo "Select an option:"
-  for item in "${menu_items[@]}"; do
+  # Sort menu items numerically using -h (human-readable numbers)
+  readarray -t sorted_items < <(printf '%s\n' "${menu_items[@]}" | sort -h)
+  for item in "${sorted_items[@]}"; do
     echo -e "$item"
   done
   read -p "Enter the number of the script you want to run, or 'q' to quit: " choice

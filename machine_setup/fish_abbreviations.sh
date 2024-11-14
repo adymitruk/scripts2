@@ -7,6 +7,7 @@ abbreviations=(
   "gaa 'git add --all'"
   "gb 'git branch'"
   "gc 'git commit -v'"
+  "gm 'git merge'"
   "gcm 'git commit -m'"
   "gco 'git checkout'"
   "gd 'git diff'"
