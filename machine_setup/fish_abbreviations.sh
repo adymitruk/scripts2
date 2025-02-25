@@ -8,6 +8,7 @@ abbreviations=(
   "gb 'git branch'"
   "gc 'git commit -v'"
   "gm 'git merge'"
+  "gmn 'git merge --no-edit'"
   "gcm 'git commit -m'"
   "gco 'git checkout'"
   "gd 'git diff'"
