@@ -23,6 +23,15 @@ if [ "$continue" != "y" ]; then
 fi
 
 # cherry-pick the commits
-echo "$cherry_picks" | while read -r commit; do
+echo "$cherry_picks" | while read -r commit author_time commit_time message; do
+    echo "sha: $commit"
+    echo "author_time: $author_time"
+    echo "commit_time: $commit_time"
+    echo "message: $message"
     git cherry-pick $commit
+	# check if failed
+	if [ $? -ne 0 ]; then
+		echo "Failed to cherry-pick $commit"
+		exit 1
+	fi
 done
