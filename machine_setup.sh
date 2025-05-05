@@ -35,4 +35,6 @@ while true; do
   else
     echo "Invalid choice. Please try again."
   fi
+  echo "Press any key to continue..."
+  read -n 1 -s
 done
