@@ -27,8 +27,8 @@ if check_if_installed; then
     fi
 fi
 
-# check if wget is
-if ! type -q wget; then
+# check if wget is installed
+if ! command -v wget >/dev/null 2>&1; then
     echo "wget is not installed. Please install it first."
     exit 1
 fi

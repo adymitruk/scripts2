@@ -21,7 +21,7 @@ if fisher_check; then
 fi
 
 # check if curl is installed
-if ! type -q curl; then
+if ! command -v curl >/dev/null 2>&1; then
     echo "curl is not installed. Please install it first."
     exit 1
 fi
