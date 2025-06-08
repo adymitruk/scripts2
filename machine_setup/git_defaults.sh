@@ -9,6 +9,7 @@ git_config_map=(
     ["push.default"]="current"
     ["core.editor"]="vim"
     ["log.decorate"]="true"
+    ["status.showUntrackedFiles"]="all"
 )
 
 function git_defaults_check() {
