@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Voice Input
+Comment=Start voice input for text
+Exec=~/.local/bin/voice_input_wrapper.sh
+Terminal=true
+Type=Application
+Icon=audio-input-microphone
+Categories=Utility;
+Keywords=voice;speech;input;microphone;accessibility; 

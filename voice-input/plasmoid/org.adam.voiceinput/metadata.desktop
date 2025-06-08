@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=Voice Input Toggle
+Comment=Toggle voice input on/off
+Type=Service
+Icon=audio-input-microphone
+X-KDE-ServiceTypes=Plasma/Applet
+X-Plasma-API=declarativeappletscript
+X-Plasma-MainScript=ui/main.qml
+X-KDE-PluginInfo-Author=Adam
+X-KDE-PluginInfo-Email=
+X-KDE-PluginInfo-Name=org.adam.voiceinput
+X-KDE-PluginInfo-Version=1.0
+X-KDE-PluginInfo-Website=
+X-KDE-PluginInfo-Category=Utilities
+X-KDE-PluginInfo-License=GPL
+X-KDE-PluginInfo-EnabledByDefault=true 
