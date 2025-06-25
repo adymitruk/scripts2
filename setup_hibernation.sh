@@ -338,6 +338,28 @@ check_existing_config() {
     fi
 }
 
+# Check suspend-then-hibernate configuration
+check_suspend_then_hibernate() {
+    echo -e "\n${BLUE}=== Suspend-Then-Hibernate Configuration ===${NC}"
+    
+    # Check if suspend-then-hibernate target is enabled
+    if systemctl is-enabled suspend-then-hibernate.target >/dev/null 2>&1; then
+        print_status "OK" "Suspend-then-hibernate target is enabled"
+    else
+        print_status "WARNING" "Suspend-then-hibernate target is not enabled"
+        print_status "INFO" "This provides hybrid sleep-like functionality (sleep first, then hibernate)"
+        SUSPEND_THEN_HIBERNATE_NEEDED=1
+    fi
+    
+    # Check if sleep delay is configured
+    local sleep_delay=$(loginctl show-session $(loginctl list-sessions --no-legend | head -n 1 | awk '{print $1}') -p SleepDelaySec 2>/dev/null | cut -d= -f2)
+    if [[ -n "$sleep_delay" && "$sleep_delay" != "0" ]]; then
+        print_status "INFO" "Sleep delay configured: ${sleep_delay} seconds"
+    else
+        print_status "INFO" "No sleep delay configured (will use system default)"
+    fi
+}
+
 # Analyze prerequisites and identify issues
 analyze_prerequisites() {
     echo -e "\n${BLUE}=== Prerequisites Analysis ===${NC}"
@@ -417,6 +439,12 @@ analyze_prerequisites() {
         else
             print_status "OK" "KDE polkit rules configured for hibernation"
         fi
+    fi
+    
+    # Check suspend-then-hibernate configuration
+    if [[ $SUSPEND_THEN_HIBERNATE_NEEDED -eq 1 ]]; then
+        print_status "WARNING" "Suspend-then-hibernate not configured for hybrid sleep-like behavior"
+        warnings=$((warnings + 1))
     fi
     
     # Summary of issues
@@ -888,6 +916,129 @@ EOF
     fi
 }
 
+# Show commands to configure suspend-then-hibernate (for non-root users)
+show_suspend_then_hibernate_commands() {
+    echo -e "\n${BLUE}=== Commands to Configure Suspend-Then-Hibernate ===${NC}"
+    echo "Run these commands as root (with sudo) to enable hybrid sleep-like behavior:"
+    echo
+    echo -e "${GREEN}# Enable suspend-then-hibernate target${NC}"
+    echo "sudo systemctl enable suspend-then-hibernate.target"
+    echo
+    echo -e "${GREEN}# Set sleep delay before hibernation (optional - 30 minutes example)${NC}"
+    echo "sudo loginctl set-property system SleepDelaySec 1800"
+    echo
+    echo -e "${GREEN}# Verify configuration${NC}"
+    echo "systemctl is-enabled suspend-then-hibernate.target"
+    echo "loginctl show-session \$(loginctl list-sessions --no-legend | head -n 1 | awk '{print \$1}') -p SleepDelaySec"
+    echo
+    print_status "INFO" "After running these commands, restart KDE session or reboot."
+    print_status "INFO" "Then run this script again to verify the fix. Or run this script as root to configure suspend-then-hibernate."
+}
+
+# Prompt user to configure suspend-then-hibernate
+prompt_fix_suspend_then_hibernate() {
+    if [[ $SUSPEND_THEN_HIBERNATE_NEEDED -eq 1 ]]; then
+        echo -e "\n${YELLOW}=== Suspend-Then-Hibernate Configuration Required ===${NC}"
+        echo "Suspend-then-hibernate is not configured for hybrid sleep-like behavior."
+        echo "This feature provides the benefits of both sleep and hibernation:"
+        echo "  • Fast resume from sleep initially"
+        echo "  • Automatic hibernation after a delay for power safety"
+        echo "  • Similar to Windows' hybrid sleep functionality"
+        echo
+        echo "The fix involves:"
+        echo "  1. Enabling suspend-then-hibernate target"
+        echo "  2. Configuring sleep delay before hibernation (optional)"
+        echo
+        
+        # Check if running in interactive mode
+        if [[ -t 0 ]]; then
+            # Interactive mode
+            if [[ $EUID -eq 0 ]]; then
+                read -p "Would you like to configure suspend-then-hibernate now? (y/N): " -n 1 -r
+                echo
+                
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    configure_suspend_then_hibernate
+                else
+                    print_status "INFO" "Suspend-then-hibernate configuration declined."
+                    echo "You can configure this later manually."
+                fi
+            else
+                # Non-root user - just show commands without prompting
+                show_suspend_then_hibernate_commands
+            fi
+        else
+            # Non-interactive mode - just show the commands
+            print_status "INFO" "Non-interactive mode detected."
+            if [[ $EUID -eq 0 ]]; then
+                print_status "INFO" "Run this script interactively to automatically configure suspend-then-hibernate."
+            else
+                show_suspend_then_hibernate_commands
+            fi
+        fi
+    fi
+}
+
+# Actually configure suspend-then-hibernate (for root users)
+configure_suspend_then_hibernate() {
+    echo -e "\n${BLUE}=== Configuring Suspend-Then-Hibernate ===${NC}"
+    
+    echo "About to perform the following operations:"
+    echo "  1. Enable suspend-then-hibernate target"
+    echo "  2. Configure sleep delay before hibernation (optional)"
+    echo
+    print_status "INFO" "This provides hybrid sleep-like functionality."
+    echo
+    
+    read -p "Are you sure you want to configure suspend-then-hibernate? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_status "INFO" "Suspend-then-hibernate configuration cancelled by user."
+        return 1
+    fi
+    
+    print_status "INFO" "Enabling suspend-then-hibernate target..."
+    if systemctl enable suspend-then-hibernate.target; then
+        print_status "OK" "Suspend-then-hibernate target enabled"
+    else
+        print_status "ERROR" "Failed to enable suspend-then-hibernate target"
+        return 1
+    fi
+    
+    # Ask about sleep delay configuration
+    echo
+    echo "Sleep delay configuration:"
+    echo "  This sets how long the system stays in sleep before hibernating."
+    echo "  Recommended: 30 minutes (1800 seconds) for laptops, 60 minutes (3600) for desktops"
+    echo "  Leave empty to use system default"
+    echo
+    read -p "Enter sleep delay in seconds (or press Enter for default): " sleep_delay
+    echo
+    
+    if [[ -n "$sleep_delay" && "$sleep_delay" =~ ^[0-9]+$ ]]; then
+        print_status "INFO" "Setting sleep delay to ${sleep_delay} seconds..."
+        if loginctl set-property system SleepDelaySec "$sleep_delay"; then
+            print_status "OK" "Sleep delay configured to ${sleep_delay} seconds"
+        else
+            print_status "WARNING" "Failed to set sleep delay, but suspend-then-hibernate is still enabled"
+        fi
+    else
+        print_status "INFO" "Using system default sleep delay"
+    fi
+    
+    echo
+    print_status "OK" "Suspend-then-hibernate configuration completed successfully"
+    print_status "INFO" "This provides hybrid sleep-like functionality:"
+    echo "  • System will sleep first (fast resume)"
+    echo "  • After the configured delay, it will hibernate for power safety"
+    echo "  • Similar to Windows' hybrid sleep behavior"
+    echo
+    print_status "INFO" "Current configuration:"
+    systemctl is-enabled suspend-then-hibernate.target
+    local current_delay=$(loginctl show-session $(loginctl list-sessions --no-legend | head -n 1 | awk '{print $1}') -p SleepDelaySec 2>/dev/null | cut -d= -f2)
+    echo "Sleep delay: ${current_delay:-"system default"} seconds"
+}
+
 # Main execution
 main() {
     # Initialize global variables for issue tracking
@@ -898,6 +1049,7 @@ main() {
     CRITICAL_ISSUES_COUNT=0
     GRUB_NOT_CONFIGURED=0
     KDE_POLKIT_NEEDED=0
+    SUSPEND_THEN_HIBERNATE_NEEDED=0
     
     check_root
     check_system_info
@@ -910,6 +1062,7 @@ main() {
     check_disk_space
     check_hardware
     check_existing_config
+    check_suspend_then_hibernate
     
     # Analyze all prerequisites and identify critical issues
     analyze_prerequisites
@@ -931,16 +1084,22 @@ main() {
         prompt_fix_kde_polkit
     fi
     
+    # Check for suspend-then-hibernate configuration issues
+    if [[ $SUSPEND_THEN_HIBERNATE_NEEDED -eq 1 ]]; then
+        prompt_fix_suspend_then_hibernate
+    fi
+    
     # Final status message
-    if [[ $critical_issues -eq 0 && $GRUB_NOT_CONFIGURED -eq 0 && $KDE_POLKIT_NEEDED -eq 0 ]]; then
+    if [[ $critical_issues -eq 0 && $GRUB_NOT_CONFIGURED -eq 0 && $KDE_POLKIT_NEEDED -eq 0 && $SUSPEND_THEN_HIBERNATE_NEEDED -eq 0 ]]; then
         echo
         echo -e "${GREEN}=== All Prerequisites Met! ===${NC}"
-        print_status "OK" "Your system is ready for hibernation"
+        print_status "OK" "Your system is ready for hibernation and hybrid sleep-like functionality"
         echo
         echo "Next steps:"
         echo "1. Test hibernation: sudo systemctl hibernate"
-        echo "2. Configure power management settings as needed"
-        echo "3. Set up hibernation triggers (lid close, power button, etc.)"
+        echo "2. Test suspend-then-hibernate: sudo systemctl suspend-then-hibernate"
+        echo "3. Configure power management settings as needed"
+        echo "4. Set up hibernation triggers (lid close, power button, etc.)"
     fi
     
     echo
